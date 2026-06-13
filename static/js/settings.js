@@ -372,6 +372,7 @@ function toggleEngineSettingsSections(engineName) {
         'chatterbox_turbo_local': 'chatterbox-local',
         'chatterbox_turbo_replicate': 'chatterbox-replicate',
         'voxcpm_local': 'voxcpm',
+        'vocec_mlx_local': 'vocec-mlx',
         'pocket_tts': 'pocket-tts',
         'pocket_tts_preset': 'pocket-tts',
         'qwen3_custom': 'qwen3',
@@ -778,6 +779,19 @@ function applySettings(settings) {
         voxcpmDenoise.checked = settings.voxcpm_local_denoise === true;
     }
 
+    // Vocec MLX Local settings
+    setElementValue('vocec-mlx-base-url', settings.vocec_mlx_base_url || 'http://127.0.0.1:7860');
+    setElementValue('vocec-mlx-model', settings.vocec_mlx_model || '');
+    setElementValue('vocec-mlx-voice', settings.vocec_mlx_voice || '');
+    setElementValue('vocec-mlx-voice-sample-path', settings.vocec_mlx_voice_sample_path || '');
+    setElementValue('vocec-mlx-audio-format', settings.vocec_mlx_audio_format || 'wav');
+    setElementValue('vocec-mlx-speed', settings.vocec_mlx_speed ?? 1.0, 1.0);
+    setElementValue('vocec-mlx-timeout', settings.vocec_mlx_timeout_seconds ?? 180, 180);
+    setElementValue('vocec-mlx-retry-count', settings.vocec_mlx_retry_count ?? 1, 1);
+    setElementValue('vocec-mlx-retry-backoff', settings.vocec_mlx_retry_backoff_seconds ?? 2.0, 2.0);
+    setElementValue('vocec-mlx-chunk-size', settings.vocec_mlx_chunk_size ?? 450, 450);
+    setCheckboxValue('vocec-mlx-overwrite-existing', settings.vocec_mlx_overwrite_existing ?? false, false);
+
     // Qwen3 CustomVoice settings
     const qwen3Model = document.getElementById('qwen3-custom-model-id');
     if (qwen3Model) {
@@ -1107,6 +1121,27 @@ async function saveSettings() {
         voxcpm_local_inference_timesteps: parseInt(document.getElementById('voxcpm-local-steps').value, 10) || 10,
         voxcpm_local_normalize: document.getElementById('voxcpm-local-normalize').checked,
         voxcpm_local_denoise: document.getElementById('voxcpm-local-denoise').checked,
+        vocec_project_name: 'Vocec',
+        vocec_mlx_base_url: document.getElementById('vocec-mlx-base-url')?.value || 'http://127.0.0.1:7860',
+        vocec_mlx_model: document.getElementById('vocec-mlx-model')?.value || '',
+        vocec_mlx_voice: document.getElementById('vocec-mlx-voice')?.value || '',
+        vocec_mlx_voice_sample_path: document.getElementById('vocec-mlx-voice-sample-path')?.value || '',
+        vocec_mlx_audio_format: document.getElementById('vocec-mlx-audio-format')?.value || 'wav',
+        vocec_mlx_speed: parseFloat(document.getElementById('vocec-mlx-speed')?.value) || 1.0,
+        vocec_mlx_timeout_seconds: (() => {
+            const parsed = parseInt(document.getElementById('vocec-mlx-timeout')?.value, 10);
+            return Number.isFinite(parsed) ? parsed : 180;
+        })(),
+        vocec_mlx_retry_count: (() => {
+            const parsed = parseInt(document.getElementById('vocec-mlx-retry-count')?.value, 10);
+            return Number.isFinite(parsed) ? parsed : 1;
+        })(),
+        vocec_mlx_retry_backoff_seconds: (() => {
+            const parsed = parseFloat(document.getElementById('vocec-mlx-retry-backoff')?.value);
+            return Number.isFinite(parsed) ? parsed : 2.0;
+        })(),
+        vocec_mlx_chunk_size: parseInt(document.getElementById('vocec-mlx-chunk-size')?.value, 10) || 450,
+        vocec_mlx_overwrite_existing: document.getElementById('vocec-mlx-overwrite-existing')?.checked ?? false,
         qwen3_custom_model_id: document.getElementById('qwen3-custom-model-id').value,
         qwen3_chunk_size: parseInt(document.getElementById('qwen3-chunk-size')?.value, 10) || 500,
         qwen3_custom_device: document.getElementById('qwen3-custom-device').value,
@@ -1267,6 +1302,18 @@ async function resetSettings() {
         voxcpm_local_inference_timesteps: 20,
         voxcpm_local_normalize: true,
         voxcpm_local_denoise: false,
+        vocec_project_name: 'Vocec',
+        vocec_mlx_base_url: 'http://127.0.0.1:7860',
+        vocec_mlx_model: '',
+        vocec_mlx_voice: '',
+        vocec_mlx_voice_sample_path: '',
+        vocec_mlx_audio_format: 'wav',
+        vocec_mlx_speed: 1.0,
+        vocec_mlx_timeout_seconds: 180,
+        vocec_mlx_retry_count: 1,
+        vocec_mlx_retry_backoff_seconds: 2.0,
+        vocec_mlx_chunk_size: 450,
+        vocec_mlx_overwrite_existing: false,
         qwen3_custom_model_id: 'Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice',
         qwen3_custom_device: 'auto',
         qwen3_custom_dtype: 'bfloat16',

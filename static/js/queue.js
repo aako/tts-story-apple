@@ -292,6 +292,7 @@ const TURBO_ENGINES = new Set([
     'chatterbox_turbo_local',
     'chatterbox_turbo_replicate',
     'voxcpm_local',
+    'vocec_mlx_local',
     'qwen3_clone',
     'omnivoice_clone'
 ]);
@@ -734,7 +735,9 @@ function renderChatterboxVoiceControl(jobId, chunk, engine) {
     const optionMarkup = hasVoices
         ? buildChatterboxVoiceOptions(selectedPrompt)
         : '<option value="">No saved voices available</option>';
-    const labelText = isTurboEngine(engine) ? 'Turbo reference prompt' : 'Chatterbox voice prompt';
+    const labelText = normalizeEngineName(engine) === 'vocec_mlx_local'
+        ? 'Vocec reference prompt'
+        : (isTurboEngine(engine) ? 'Turbo reference prompt' : 'Chatterbox voice prompt');
     return `
         <div class="chunk-row-voice">
             <label for="chunk-voice-${chunk.id}">${labelText}</label>

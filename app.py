@@ -113,6 +113,10 @@ CORS(app)
 
 # Configuration
 CONFIG_FILE = "config.json"
+LOCAL_CONFIG_FILES = ("config.local.json", "config.vocec.local.json")
+PRIVATE_CONFIG_KEYS = {
+    "vocec_mlx_voice_sample_path",
+}
 # Use Flask's static folder so paths stay correct even when the server is launched
 # from a different working directory.
 OUTPUT_DIR = Path(app.static_folder) / "audio"
@@ -171,6 +175,18 @@ DEFAULT_CONFIG = {
     "llm_gemini_chunk_chapters": True,
     "llm_local_chunk_chapters": True,
     "tts_engine": "kokoro",
+    "vocec_project_name": "Vocec",
+    "vocec_mlx_base_url": "http://127.0.0.1:7860",
+    "vocec_mlx_model": "",
+    "vocec_mlx_voice": "",
+    "vocec_mlx_voice_sample_path": "",
+    "vocec_mlx_audio_format": "wav",
+    "vocec_mlx_speed": 1.0,
+    "vocec_mlx_timeout_seconds": 180,
+    "vocec_mlx_retry_count": 1,
+    "vocec_mlx_retry_backoff_seconds": 2.0,
+    "vocec_mlx_chunk_size": 450,
+    "vocec_mlx_overwrite_existing": False,
     "chatterbox_turbo_local_default_prompt": "",
     "chatterbox_turbo_local_temperature": 0.8,
     "chatterbox_turbo_local_top_p": 0.95,
@@ -277,6 +293,20 @@ VOXCPM_LOCAL_SETTING_KEYS = {
     "voxcpm_local_normalize",
     "voxcpm_local_denoise",
 }
+VOCEC_MLX_SETTING_KEYS = {
+    "vocec_project_name",
+    "vocec_mlx_base_url",
+    "vocec_mlx_model",
+    "vocec_mlx_voice",
+    "vocec_mlx_voice_sample_path",
+    "vocec_mlx_audio_format",
+    "vocec_mlx_speed",
+    "vocec_mlx_timeout_seconds",
+    "vocec_mlx_retry_count",
+    "vocec_mlx_retry_backoff_seconds",
+    "vocec_mlx_chunk_size",
+    "vocec_mlx_overwrite_existing",
+}
 QWEN3_CUSTOM_SETTING_KEYS = {
     "qwen3_custom_model_id",
     "qwen3_custom_device",
@@ -328,6 +358,26 @@ VOXCPM_LOCAL_OPTION_ALIASES = {
     "inference_timesteps": "voxcpm_local_inference_timesteps",
     "normalize": "voxcpm_local_normalize",
     "denoise": "voxcpm_local_denoise",
+}
+VOCEC_MLX_OPTION_ALIASES = {
+    "project": "vocec_project_name",
+    "project_name": "vocec_project_name",
+    "base_url": "vocec_mlx_base_url",
+    "url": "vocec_mlx_base_url",
+    "model": "vocec_mlx_model",
+    "voice": "vocec_mlx_voice",
+    "voice_sample_path": "vocec_mlx_voice_sample_path",
+    "sample_path": "vocec_mlx_voice_sample_path",
+    "audio_format": "vocec_mlx_audio_format",
+    "format": "vocec_mlx_audio_format",
+    "speed": "vocec_mlx_speed",
+    "timeout": "vocec_mlx_timeout_seconds",
+    "timeout_seconds": "vocec_mlx_timeout_seconds",
+    "retry_count": "vocec_mlx_retry_count",
+    "retry_backoff_seconds": "vocec_mlx_retry_backoff_seconds",
+    "chunk_size": "vocec_mlx_chunk_size",
+    "overwrite": "vocec_mlx_overwrite_existing",
+    "overwrite_existing": "vocec_mlx_overwrite_existing",
 }
 QWEN3_CUSTOM_OPTION_ALIASES = {
     "model": "qwen3_custom_model_id",
@@ -386,6 +436,18 @@ VOXCPM_LOCAL_FLOAT_SETTINGS = {
 }
 VOXCPM_LOCAL_INT_SETTINGS = {
     "voxcpm_local_inference_timesteps": (10, 100, 32),
+}
+VOCEC_MLX_BOOLEAN_SETTINGS = {
+    "vocec_mlx_overwrite_existing",
+}
+VOCEC_MLX_FLOAT_SETTINGS = {
+    "vocec_mlx_speed": (0.5, 2.0, 1.0),
+    "vocec_mlx_retry_backoff_seconds": (0.0, 60.0, 2.0),
+}
+VOCEC_MLX_INT_SETTINGS = {
+    "vocec_mlx_timeout_seconds": (1, 3600, 180),
+    "vocec_mlx_retry_count": (0, 10, 1),
+    "vocec_mlx_chunk_size": (100, 1000, 450),
 }
 
 CHATTERBOX_TURBO_REPLICATE_SETTING_KEYS = {
@@ -490,6 +552,24 @@ def _coerce_float(
         parsed = minimum
 
 
+def _coerce_bounded_float(
+    value: Any,
+    *,
+    minimum: float,
+    maximum: float,
+    fallback: float,
+) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        parsed = fallback
+    if parsed < minimum:
+        parsed = minimum
+    if parsed > maximum:
+        parsed = maximum
+    return parsed
+
+
 def _normalize_engine_options(engine_name: str, options: Dict[str, Any]) -> Dict[str, Any]:
     if engine_name == "chatterbox_turbo_local":
         return _normalize_chatterbox_turbo_local_options(options)
@@ -497,6 +577,8 @@ def _normalize_engine_options(engine_name: str, options: Dict[str, Any]) -> Dict
         return _normalize_chatterbox_turbo_replicate_options(options)
     if engine_name == "voxcpm_local":
         return _normalize_voxcpm_local_options(options)
+    if engine_name == "vocec_mlx_local":
+        return _normalize_vocec_mlx_options(options)
     if engine_name == "qwen3_custom":
         return _normalize_qwen3_custom_options(options)
     if engine_name == "qwen3_clone":
@@ -747,6 +829,44 @@ def _normalize_voxcpm_local_options(options: Dict[str, Any]) -> Dict[str, Any]:
         if key in VOXCPM_LOCAL_INT_SETTINGS:
             minimum, maximum, fallback = VOXCPM_LOCAL_INT_SETTINGS[key]
             result[key] = _coerce_int(value, minimum=minimum, maximum=maximum, fallback=fallback)
+            continue
+        result[key] = (value or "").strip() if isinstance(value, str) else (value or "")
+    return result
+
+
+def _normalize_vocec_mlx_options(options: Dict[str, Any]) -> Dict[str, Any]:
+    normalized: Dict[str, Any] = {}
+    for raw_key, value in options.items():
+        if raw_key is None:
+            continue
+        key = str(raw_key).strip().lower()
+        canonical = VOCEC_MLX_OPTION_ALIASES.get(key)
+        if not canonical and key in VOCEC_MLX_SETTING_KEYS:
+            canonical = key
+        if canonical and canonical in VOCEC_MLX_SETTING_KEYS:
+            normalized[canonical] = value
+
+    result: Dict[str, Any] = {}
+    for key, value in normalized.items():
+        if key in VOCEC_MLX_BOOLEAN_SETTINGS:
+            result[key] = _coerce_bool(value)
+            continue
+        if key in VOCEC_MLX_FLOAT_SETTINGS:
+            minimum, maximum, fallback = VOCEC_MLX_FLOAT_SETTINGS[key]
+            result[key] = _coerce_bounded_float(
+                value,
+                minimum=minimum,
+                maximum=maximum,
+                fallback=fallback,
+            )
+            continue
+        if key in VOCEC_MLX_INT_SETTINGS:
+            minimum, maximum, fallback = VOCEC_MLX_INT_SETTINGS[key]
+            result[key] = _coerce_int(value, minimum=minimum, maximum=maximum, fallback=fallback)
+            continue
+        if key == "vocec_mlx_audio_format":
+            fmt = (value or "wav").strip().lower() if isinstance(value, str) else "wav"
+            result[key] = fmt or "wav"
             continue
         result[key] = (value or "").strip() if isinstance(value, str) else (value or "")
     return result
@@ -1951,6 +2071,22 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             str(bool(config.get("voxcpm_local_denoise", False))),
         )
         return f"{engine_name}::{'|'.join(parts)}"
+    if engine_name == "vocec_mlx_local":
+        parts = (
+            (config.get("vocec_project_name") or "Vocec").strip(),
+            (config.get("vocec_mlx_base_url") or "").strip(),
+            (config.get("vocec_mlx_model") or "").strip(),
+            (config.get("vocec_mlx_voice") or "").strip(),
+            (config.get("vocec_mlx_voice_sample_path") or "").strip(),
+            (config.get("vocec_mlx_audio_format") or "wav").strip().lower(),
+            str(config.get("sample_rate")),
+            str(config.get("vocec_mlx_speed")),
+            str(config.get("vocec_mlx_timeout_seconds")),
+            str(config.get("vocec_mlx_retry_count")),
+            str(config.get("vocec_mlx_retry_backoff_seconds")),
+            str(bool(config.get("vocec_mlx_overwrite_existing", False))),
+        )
+        return f"{engine_name}::{'|'.join(parts)}"
     if engine_name == "qwen3_custom":
         parts = (
             (config.get("qwen3_custom_model_id") or "").strip(),
@@ -2083,6 +2219,25 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
             inference_timesteps=int(config.get("voxcpm_local_inference_timesteps") or 32),
             normalize=bool(config.get("voxcpm_local_normalize", False)),
             denoise=bool(config.get("voxcpm_local_denoise", False)),
+        )
+
+    if engine_name == "vocec_mlx_local":
+        retry_count = config.get("vocec_mlx_retry_count")
+        retry_backoff = config.get("vocec_mlx_retry_backoff_seconds")
+        return get_engine(
+            "vocec_mlx_local",
+            base_url=(config.get("vocec_mlx_base_url") or "http://127.0.0.1:7860").strip(),
+            model=(config.get("vocec_mlx_model") or "").strip() or None,
+            default_voice=(config.get("vocec_mlx_voice") or "").strip() or None,
+            default_voice_sample_path=(config.get("vocec_mlx_voice_sample_path") or "").strip() or None,
+            audio_format=(config.get("vocec_mlx_audio_format") or "wav").strip().lower(),
+            sample_rate=int(config.get("sample_rate") or DEFAULT_SAMPLE_RATE),
+            default_speed=float(config.get("vocec_mlx_speed") or config.get("speed") or 1.0),
+            timeout_seconds=int(config.get("vocec_mlx_timeout_seconds") or 180),
+            retry_count=int(retry_count if retry_count is not None else 1),
+            retry_backoff_seconds=float(retry_backoff if retry_backoff is not None else 2.0),
+            overwrite_existing=bool(config.get("vocec_mlx_overwrite_existing", False)),
+            project_name=(config.get("vocec_project_name") or "Vocec").strip() or "Vocec",
         )
 
     if engine_name == "qwen3_custom":
@@ -2898,6 +3053,15 @@ def _create_text_processor_for_engine(engine_name: str, chunk_size: int, config:
             chunk_strategy="characters",
             char_soft_limit=voxcpm_chunk_size,
             char_hard_limit=voxcpm_chunk_size + 50,
+        )
+    if _normalize_engine_name(engine_name) == "vocec_mlx_local":
+        vocec_chunk_size = 450
+        if config:
+            vocec_chunk_size = config.get("vocec_mlx_chunk_size", vocec_chunk_size)
+        return TextProcessor(
+            chunk_strategy="characters",
+            char_soft_limit=vocec_chunk_size,
+            char_hard_limit=vocec_chunk_size + 50,
         )
     if _normalize_engine_name(engine_name) == "kitten_tts":
         kitten_chunk_size = 300
@@ -4365,14 +4529,16 @@ def start_worker_thread():
 def load_config():
     """Load configuration from file"""
     config = DEFAULT_CONFIG.copy()
-    if os.path.exists(CONFIG_FILE):
+    for config_file in (CONFIG_FILE, *LOCAL_CONFIG_FILES):
+        if not os.path.exists(config_file):
+            continue
         try:
-            with open(CONFIG_FILE, 'r') as f:
+            with open(config_file, 'r') as f:
                 data = json.load(f)
             if isinstance(data, dict):
                 config.update({k: v for k, v in data.items() if k in DEFAULT_CONFIG})
         except Exception as exc:
-            logger.warning(f"Failed to load config.json, using defaults: {exc}")
+            logger.warning("Failed to load %s, using available defaults: %s", config_file, exc)
     return config
 
 
@@ -4381,6 +4547,9 @@ def save_config(config):
     merged = DEFAULT_CONFIG.copy()
     if isinstance(config, dict):
         merged.update({k: v for k, v in config.items() if k in DEFAULT_CONFIG})
+    for key in PRIVATE_CONFIG_KEYS:
+        if key in DEFAULT_CONFIG:
+            merged[key] = DEFAULT_CONFIG[key]
     with open(CONFIG_FILE, 'w') as f:
         json.dump(merged, f, indent=2)
 
@@ -6182,7 +6351,7 @@ def preview_audio():
     # be forwarded as audio_prompt_path, not as the voice name parameter.
     _PROMPT_ENGINES = {
         "chatterbox_turbo_local", "chatterbox_turbo_replicate",
-        "voxcpm_local", "pocket_tts", "qwen3_clone", "omnivoice_clone",
+        "voxcpm_local", "vocec_mlx_local", "pocket_tts", "qwen3_clone", "omnivoice_clone",
     }
     audio_prompt_path = data.get('audio_prompt_path') or None
     if engine_name in _PROMPT_ENGINES and voice and not audio_prompt_path:
@@ -6195,7 +6364,7 @@ def preview_audio():
     if engine_name in _QWEN3_ENGINES and lang_code in _KOKORO_LANG_CODES:
         lang_code = 'auto'
 
-    if not voice and not audio_prompt_path:
+    if not voice and not audio_prompt_path and engine_name != "vocec_mlx_local":
         return jsonify({"success": False, "error": "Voice is required for preview."}), 400
 
     try:

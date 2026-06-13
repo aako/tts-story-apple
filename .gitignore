@@ -38,9 +38,27 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
 
 # Environment
 .env
+.env.local
+.env.vocec
+
+# Local/private Vocec config and runtime artifacts
+config.local.json
+config.vocec.local.json
+*.local.json
+vocec.local/
+vocec-output/
+rendered-audio/
+local-output/
+manuscripts/
+voice-samples/
+*.manuscript.txt
+*.local.db
+*.local.sqlite
+*.local.sqlite3
 
 # Models (large files - downloaded on demand)
 models/
@@ -85,3 +103,7 @@ engines/index-tts/
 !engines/index-tts/tts_worker.py
 engines/omnivoice/.venv
 engines/omnivoice/.omnivoice_ready
+
+# Python virtual environments
+.venv/
+venv/

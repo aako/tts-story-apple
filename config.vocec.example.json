@@ -1,0 +1,14 @@
+{
+  "vocec_project_name": "Vocec",
+  "vocec_mlx_base_url": "http://127.0.0.1:7860",
+  "vocec_mlx_model": "mlx-community/example-tts-model",
+  "vocec_mlx_voice": "narrator",
+  "vocec_mlx_voice_sample_path": "/path/to/local/voice/sample.wav",
+  "vocec_mlx_audio_format": "wav",
+  "vocec_mlx_speed": 1.0,
+  "vocec_mlx_timeout_seconds": 180,
+  "vocec_mlx_retry_count": 1,
+  "vocec_mlx_retry_backoff_seconds": 2.0,
+  "vocec_mlx_chunk_size": 450,
+  "vocec_mlx_overwrite_existing": false
+}

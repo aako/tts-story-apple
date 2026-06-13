@@ -1086,6 +1086,7 @@ function isTurboEngine(engineName) {
     return value === 'chatterbox_turbo_local'
         || value === 'chatterbox_turbo_replicate'
         || value === 'voxcpm_local'
+        || value === 'vocec_mlx_local'
         || value === 'qwen3_clone'
         || value === 'omnivoice_clone';
 }
@@ -1110,6 +1111,10 @@ function isOmniVoiceDesignEngine(engineName) {
 
 function isPocketPresetEngine(engineName) {
     return (engineName || '').toLowerCase() === 'pocket_tts_preset';
+}
+
+function isVocecMlxEngine(engineName) {
+    return (engineName || '').toLowerCase() === 'vocec_mlx_local';
 }
 
 function isKokoroEngine(engineName) {
@@ -1232,6 +1237,7 @@ const ENGINE_MIN_DURATION = {
     'chatterbox_turbo_replicate': 5.0,
     'chatterbox': 5.0,
     'voxcpm_local': 0,  // VoxCPM accepts any duration
+    'vocec_mlx_local': 0,
     'pocket_tts': 0,
     'qwen3_custom': 0,
     'qwen3_clone': 0,
@@ -1969,8 +1975,8 @@ async function handleFxPreview(speaker, container) {
     const usesPromptEngine = isPromptEngine(engineName);
     const samplePrompt = usesPromptEngine ? resolveVoiceSampleSelection(speaker) : '';
     const usesSamplePreview = usesPromptEngine && !!samplePrompt;
-    const voiceName = usesSamplePreview ? '' : resolveVoiceSelection(speaker);
-    if (!voiceName && !samplePrompt) {
+    const voiceName = (usesSamplePreview || isVocecMlxEngine(engineName)) ? '' : resolveVoiceSelection(speaker);
+    if (!voiceName && !samplePrompt && !isVocecMlxEngine(engineName)) {
         if (statusEl) {
             statusEl.textContent = usesPromptEngine
                 ? 'Select a voice sample first.'
@@ -3622,6 +3628,7 @@ const engineDisplayNames = {
     'chatterbox_turbo_local': 'Chatterbox · Local GPU',
     'chatterbox_turbo_replicate': 'Chatterbox · Replicate',
     'voxcpm_local': 'VoxCPM 1.5 · Local GPU',
+    'vocec_mlx_local': 'Vocec MLX Local',
     'qwen3_custom': 'Qwen3-TTS · Custom Voice',
     'qwen3_clone': 'Qwen3-TTS · Voice Clone',
     'pocket_tts': 'Pocket TTS · Clone',
@@ -3638,7 +3645,7 @@ function updateModeIndicator(engineName) {
     if (!modeEl) return;
 
     const normalizedEngine = (engineName || 'kokoro').toLowerCase();
-    const isLocal = ['kokoro', 'chatterbox_turbo_local', 'voxcpm_local', 'qwen3_custom', 'qwen3_clone', 'pocket_tts', 'pocket_tts_preset', 'kitten_tts', 'index_tts']
+    const isLocal = ['kokoro', 'chatterbox_turbo_local', 'vocec_mlx_local', 'voxcpm_local', 'qwen3_custom', 'qwen3_clone', 'pocket_tts', 'pocket_tts_preset', 'kitten_tts', 'index_tts']
         .includes(normalizedEngine);
 
     modeEl.textContent = engineDisplayNames[normalizedEngine] || normalizedEngine;
@@ -5680,6 +5687,31 @@ function getVoiceAssignments() {
             });
         }
     }
+
+    if (isVocecMlxEngine(engineName) && Object.keys(assignments).length) {
+        Object.entries(assignments).forEach(([speakerKey, assignment]) => {
+            const cleaned = {};
+            if (assignment.audio_prompt_path) cleaned.audio_prompt_path = assignment.audio_prompt_path;
+            if (assignment.extra) cleaned.extra = assignment.extra;
+            if (assignment.fx) cleaned.fx = assignment.fx;
+            if (assignment.speed) cleaned.speed = assignment.speed;
+            assignments[speakerKey] = cleaned;
+        });
+    }
+
+    if (isVocecMlxEngine(engineName) && !Object.keys(assignments).length) {
+        const rowSpeakers = getAssignmentRows()
+            .map(row => row.dataset.speaker)
+            .filter(Boolean);
+        const targets = rowSpeakers.length
+            ? rowSpeakers
+            : ((currentStats?.speakers && currentStats.speakers.length)
+                ? currentStats.speakers
+                : ['default']);
+        targets.forEach(speakerKey => {
+            assignments[speakerKey] = {};
+        });
+    }
     
     if (qwenEnabled && !Object.keys(assignments).length) {
         const fallbackSpeaker = qwenSpeakerDefault;
@@ -6086,7 +6118,7 @@ async function awrPopulateVoiceSelect(engineName) {
     select.innerHTML = '<option value="">-- Select voice --</option>';
 
     const norm = (engineName || '').toLowerCase().replace(/[_-]/g, '');
-    const usesPrompts = norm.includes('chatterbox') || norm.includes('voxcpm')
+    const usesPrompts = norm.includes('chatterbox') || norm.includes('voxcpm') || norm.includes('vocecmlx')
         || (norm.includes('pockettts') && !norm.includes('pocketttspreset'))
         || (norm.includes('qwen3') && norm.includes('clone'));
     const isQwen = norm.includes('qwen3') && !norm.includes('clone');
